@@ -21,3 +21,9 @@ Create a file in the following format in setting.json.
 }
 
 ```
+
+Execute the following command
+
+```
+docker-compose up -d
+```
