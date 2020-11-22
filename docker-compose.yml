@@ -1,0 +1,11 @@
+version: "3"
+
+services:
+  chataloud:
+    build: .
+    ports: 
+      - 80:80
+    volumes:
+      - ".:/workdir"
+    tty: true
+    restart: always
