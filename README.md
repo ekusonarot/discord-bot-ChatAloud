@@ -15,7 +15,7 @@ Create a file in the following format in setting.json.
 ```
 {
     "DISCORD_TOKEN": "{Your Discord Token}",
-    "CLIENT_ID": "Your Client ID",
+    "CLIENT_ID": "{Your Client ID}",
     "DOCOMO_API_TOKEN": "{Your docomo api Token}",
     "URL": "https://api.apigw.smt.docomo.ne.jp/futureVoiceCrayon/v1/textToSpeech"
 }
