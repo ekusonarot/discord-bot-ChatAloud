@@ -86,6 +86,55 @@ func (myContext *MyContext) getcommand() CMD {
 			}
 		},
 	}
+
+	cmd[".m"] = Command{
+		`
+		".m"
+			Mute everyone in the Voice Channel
+		`,
+		func(s *discordgo.Session, m *discordgo.MessageCreate, cmds []string) {
+			vc, ok := s.VoiceConnections[m.GuildID]
+			if !ok {
+				if _, err := s.ChannelMessageSend(m.ChannelID, "This bot is not in any Voice Channel"); err != nil {
+					log.Println(err)
+				}
+				return
+			}
+			usrIDs, err := findUsersIDInVoiceChannel(s, m, vc.ChannelID)
+			if err != nil {
+				log.Fatal(err)
+			}
+			for _, usrID := range usrIDs {
+				if err := s.GuildMemberMute(m.GuildID, usrID, true); err != nil {
+					log.Println(err)
+				}
+			}
+		},
+	}
+	cmd[".c"] = Command{
+		`
+		".c"
+			Unmute everyone in the Voice Channel
+		`,
+		func(s *discordgo.Session, m *discordgo.MessageCreate, cmds []string) {
+			vc, ok := s.VoiceConnections[m.GuildID]
+			if !ok {
+				if _, err := s.ChannelMessageSend(m.ChannelID, "This bot is not in any Voice Channel"); err != nil {
+					log.Println(err)
+				}
+				return
+			}
+			usrIDs, err := findUsersIDInVoiceChannel(s, m, vc.ChannelID)
+			if err != nil {
+				log.Fatal(err)
+			}
+			for _, usrID := range usrIDs {
+				if err := s.GuildMemberMute(m.GuildID, usrID, false); err != nil {
+					log.Println(err)
+				}
+			}
+		},
+	}
 	return cmd
 }
 
@@ -96,6 +145,18 @@ func (myContext *MyContext) helpString() string {
 		help += cmd.Description
 	}
 	return help
+}
+
+func findUsersIDInVoiceChannel(s *discordgo.Session, m *discordgo.MessageCreate, VoiceChannelID string) ([]string, error) {
+	usrs := make([]string, 0)
+	for _, guild := range s.State.Guilds {
+		for _, voiceState := range guild.VoiceStates {
+			if voiceState.ChannelID == VoiceChannelID {
+				usrs = append(usrs, voiceState.UserID)
+			}
+		}
+	}
+	return usrs, nil
 }
 
 func findVoiceChannel(s *discordgo.Session, m *discordgo.MessageCreate) (string, error) {
@@ -118,7 +179,7 @@ func voiceSettingChange(slice []string, s *discordgo.Session, m *discordgo.Messa
 	var err error
 	apiSetting, ok := VoiceSetting[m.Author.ID]
 	if !ok {
-		apiSetting_json, err = ioutil.ReadFile("docomoAPIsetting.json")
+		apiSetting_json, err = ioutil.ReadFile("defaultVoice.json")
 		if err != nil {
 			log.Fatal(err)
 		}
