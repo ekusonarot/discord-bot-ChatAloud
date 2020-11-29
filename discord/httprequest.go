@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -45,6 +46,7 @@ REQUEST:
 	}
 	af := getAudio(body)
 	if len(af.data) == 0 {
+		time.Sleep(300 * time.Millisecond)
 		goto REQUEST
 	}
 	return af.data, nil
