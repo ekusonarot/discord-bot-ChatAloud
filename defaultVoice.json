@@ -1,0 +1,9 @@
+{
+    "Command":"AP_Synth",
+    "SpeakerID": 1,
+    "StyleID": 1,
+    "SpeechRate": 1.00,
+    "PowerRate": 1.00,
+    "VoiceType": 1.00,
+    "AudioFileFormat": 2
+  }
