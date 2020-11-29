@@ -32,6 +32,7 @@ func (myContext *MyContext) docomoAPIrequest(m *discordgo.MessageCreate) ([]byte
 	if err != nil {
 		log.Fatal(err)
 	}
+REQUEST:
 	resp, err := http.Post(tUrl, "application/json", bytes.NewBuffer(apiSetting_json))
 	if err != nil {
 		return nil, err
@@ -43,7 +44,9 @@ func (myContext *MyContext) docomoAPIrequest(m *discordgo.MessageCreate) ([]byte
 		return nil, err
 	}
 	af := getAudio(body)
-
+	if len(af.data) == 0 {
+		goto REQUEST
+	}
 	return af.data, nil
 }
 func byteslice2int16slice(bs []byte) []int16 {
