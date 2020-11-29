@@ -879,6 +879,32 @@ func (s *Session) GuildMemberNickname(guildID, userID, nickname string) (err err
 	return
 }
 
+// GuildMemberMute server mutes a guild member
+//  guildID   : The ID of a Guild.
+//  userID    : The ID of a User.
+//  mute    : boolean value for if the user should be muted
+func (s *Session) GuildMemberMute(guildID string, userID string, mute bool) (err error) {
+	data := struct {
+		Mute bool `json:"mute"`
+	}{mute}
+
+	_, err = s.RequestWithBucketID("PATCH", EndpointGuildMember(guildID, userID), data, EndpointGuildMember(guildID, ""))
+	return
+}
+
+// GuildMemberDeafen server deafens a guild member
+//  guildID   : The ID of a Guild.
+//  userID    : The ID of a User.
+//  deaf    : boolean value for if the user should be deafened
+func (s *Session) GuildMemberDeafen(guildID string, userID string, deaf bool) (err error) {
+	data := struct {
+		Deaf bool `json:"deaf"`
+	}{deaf}
+
+	_, err = s.RequestWithBucketID("PATCH", EndpointGuildMember(guildID, userID), data, EndpointGuildMember(guildID, ""))
+	return
+}
+
 // GuildMemberRoleAdd adds the specified role to a given member
 //  guildID   : The ID of a Guild.
 //  userID    : The ID of a User.
