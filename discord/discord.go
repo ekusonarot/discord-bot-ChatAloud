@@ -33,10 +33,15 @@ type AudioFormat struct {
 type MyContext struct {
 	VoiceSetting map[string]*textToSpeech.VoiceSetting
 	DocomoAPI    textToSpeech.DocomoAPI
+	DeadMan      map[string]map[string]bool //guildID->UserID->bool
+	IsMeeting    map[string]bool
 }
 
 func BotRespounse(VoiceSetting map[string]*textToSpeech.VoiceSetting, docomoAPI textToSpeech.DocomoAPI) func(*discordgo.Session, *discordgo.MessageCreate) {
-	myContext := MyContext{VoiceSetting, docomoAPI}
+	deadMan := make(map[string]map[string]bool)
+	isMeeting := make(map[string]bool)
+
+	myContext := MyContext{VoiceSetting, docomoAPI, deadMan, isMeeting}
 	mySpeaking := make(map[string]bool)
 	return func(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if m.Author.Bot {

@@ -44,6 +44,10 @@ func main() {
 	}
 	defer tDiscord.Close()
 
+	if err := tDiscord.UpdateStatus(0, ".help "); err != nil {
+		log.Fatal(err)
+	}
+
 	log.Println("listening...")
 	<-stopBot
 }

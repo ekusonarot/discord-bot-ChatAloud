@@ -34,6 +34,9 @@ func (myContext *MyContext) getcommand() CMD {
 					log.Fatal(err)
 				}
 			}
+			myContext.DeadMan = map[string]map[string]bool{
+				m.GuildID: map[string]bool{},
+			}
 		},
 	}
 
@@ -111,9 +114,10 @@ func (myContext *MyContext) getcommand() CMD {
 			}
 		},
 	}
-	cmd[".c"] = Command{
+
+	cmd[".nm"] = Command{
 		`
-		".c"
+		".nm"
 			Unmute everyone in the Voice Channel
 		`,
 		func(s *discordgo.Session, m *discordgo.MessageCreate, cmds []string) {
@@ -135,6 +139,254 @@ func (myContext *MyContext) getcommand() CMD {
 			}
 		},
 	}
+
+	cmd[".d"] = Command{
+		`
+		".d"
+			Deaf everyone in the Voice Channel
+		`,
+		func(s *discordgo.Session, m *discordgo.MessageCreate, cmds []string) {
+			vc, ok := s.VoiceConnections[m.GuildID]
+			if !ok {
+				if _, err := s.ChannelMessageSend(m.ChannelID, "This bot is not in any Voice Channel"); err != nil {
+					log.Println(err)
+				}
+				return
+			}
+			usrIDs, err := findUsersIDInVoiceChannel(s, m, vc.ChannelID)
+			if err != nil {
+				log.Fatal(err)
+			}
+			for _, usrID := range usrIDs {
+				if err := s.GuildMemberDeafen(m.GuildID, usrID, true); err != nil {
+					log.Println(err)
+				}
+			}
+		},
+	}
+
+	cmd[".nd"] = Command{
+		`
+		".nd"
+			Undeaf everyone in the Voice Channel
+		`,
+		func(s *discordgo.Session, m *discordgo.MessageCreate, cmds []string) {
+			vc, ok := s.VoiceConnections[m.GuildID]
+			if !ok {
+				if _, err := s.ChannelMessageSend(m.ChannelID, "This bot is not in any Voice Channel"); err != nil {
+					log.Println(err)
+				}
+				return
+			}
+			usrIDs, err := findUsersIDInVoiceChannel(s, m, vc.ChannelID)
+			if err != nil {
+				log.Fatal(err)
+			}
+			for _, usrID := range usrIDs {
+				if err := s.GuildMemberDeafen(m.GuildID, usrID, false); err != nil {
+					log.Println(err)
+				}
+			}
+		},
+	}
+
+	cmd[".k"] = Command{
+		`
+		".k"
+			Set status killed
+			exp> .k
+			exp> .k {usr name}
+		`,
+		func(s *discordgo.Session, m *discordgo.MessageCreate, cmds []string) {
+			_, ok := s.VoiceConnections[m.GuildID]
+			if !ok {
+				if _, err := s.ChannelMessageSend(m.ChannelID, "This bot is not in any Voice Channel"); err != nil {
+					log.Println(err)
+				}
+				return
+			}
+			var usrID string
+			if len(cmds) > 1 {
+				var err error
+				usrID, err = findUsersIDbyUserName(s, m, cmds[1])
+				if err != nil {
+					if _, err := s.ChannelMessageSend(m.ChannelID, "UserID was not found"); err != nil {
+						log.Println(err)
+					}
+				}
+			} else {
+				usrID = m.Author.ID
+			}
+			myContext.DeadMan[m.GuildID][usrID] = true
+			if myContext.IsMeeting[m.GuildID] {
+				if err := s.GuildMemberDeafen(m.GuildID, usrID, false); err != nil {
+					log.Println(err)
+				}
+				if err := s.GuildMemberMute(m.GuildID, usrID, true); err != nil {
+					log.Println(err)
+				}
+			} else {
+				if err := s.GuildMemberDeafen(m.GuildID, usrID, false); err != nil {
+					log.Println(err)
+				}
+				if err := s.GuildMemberMute(m.GuildID, usrID, false); err != nil {
+					log.Println(err)
+				}
+			}
+		},
+	}
+
+	cmd[".nk"] = Command{
+		`
+		".nk"
+			Set status unkilled
+			exp> .nk
+			exp> .nk {usr name}
+		`,
+		func(s *discordgo.Session, m *discordgo.MessageCreate, cmds []string) {
+			_, ok := s.VoiceConnections[m.GuildID]
+			if !ok {
+				if _, err := s.ChannelMessageSend(m.ChannelID, "This bot is not in any Voice Channel"); err != nil {
+					log.Println(err)
+				}
+				return
+			}
+			var usrID string
+			if len(cmds) > 1 {
+				var err error
+				usrID, err = findUsersIDbyUserName(s, m, cmds[1])
+				if err != nil {
+					if _, err := s.ChannelMessageSend(m.ChannelID, "UserID was not found"); err != nil {
+						log.Println(err)
+					}
+				}
+			} else {
+				usrID = m.Author.ID
+			}
+			myContext.DeadMan[m.GuildID][usrID] = false
+			if myContext.IsMeeting[m.GuildID] {
+				if err := s.GuildMemberDeafen(m.GuildID, usrID, false); err != nil {
+					log.Println(err)
+				}
+				if err := s.GuildMemberMute(m.GuildID, usrID, false); err != nil {
+					log.Println(err)
+				}
+			} else {
+				if err := s.GuildMemberDeafen(m.GuildID, usrID, true); err != nil {
+					log.Println(err)
+				}
+				if err := s.GuildMemberMute(m.GuildID, usrID, true); err != nil {
+					log.Println(err)
+				}
+			}
+		},
+	}
+
+	cmd[".ck"] = Command{
+		`
+		".ck"
+			kill status all clear
+		`,
+		func(s *discordgo.Session, m *discordgo.MessageCreate, cmds []string) {
+			_, ok := s.VoiceConnections[m.GuildID]
+			if !ok {
+				if _, err := s.ChannelMessageSend(m.ChannelID, "This bot is not in any Voice Channel"); err != nil {
+					log.Println(err)
+				}
+				return
+			}
+
+			delete(myContext.DeadMan, m.GuildID)
+			myContext.DeadMan = map[string]map[string]bool{
+				m.GuildID: map[string]bool{},
+			}
+		},
+	}
+
+	cmd[".mtg"] = Command{
+		`
+		".mtg"
+			Meeting start
+		`,
+		func(s *discordgo.Session, m *discordgo.MessageCreate, cmds []string) {
+			vc, ok := s.VoiceConnections[m.GuildID]
+			if !ok {
+				if _, err := s.ChannelMessageSend(m.ChannelID, "This bot is not in any Voice Channel"); err != nil {
+					log.Println(err)
+				}
+				return
+			}
+			myContext.IsMeeting[m.GuildID] = true
+
+			UsrIDs, err := findUsersIDInVoiceChannel(s, m, vc.ChannelID)
+			if err != nil {
+				if _, err := s.ChannelMessageSend(m.ChannelID, "UserIDs was not found"); err != nil {
+					log.Println(err)
+				}
+				return
+			}
+			for _, usrID := range UsrIDs {
+				if myContext.DeadMan[m.GuildID][usrID] {
+					if err := s.GuildMemberDeafen(m.GuildID, usrID, false); err != nil {
+						log.Println(err)
+					}
+					if err := s.GuildMemberMute(m.GuildID, usrID, true); err != nil {
+						log.Println(err)
+					}
+				} else {
+					if err := s.GuildMemberDeafen(m.GuildID, usrID, false); err != nil {
+						log.Println(err)
+					}
+					if err := s.GuildMemberMute(m.GuildID, usrID, false); err != nil {
+						log.Println(err)
+					}
+				}
+			}
+
+		},
+	}
+
+	cmd[".fin"] = Command{
+		`
+		".fin"
+			Meeting finish
+		`,
+		func(s *discordgo.Session, m *discordgo.MessageCreate, cmds []string) {
+			vc, ok := s.VoiceConnections[m.GuildID]
+			if !ok {
+				if _, err := s.ChannelMessageSend(m.ChannelID, "This bot is not in any Voice Channel"); err != nil {
+					log.Println(err)
+				}
+				return
+			}
+			myContext.IsMeeting[m.GuildID] = false
+
+			UsrIDs, err := findUsersIDInVoiceChannel(s, m, vc.ChannelID)
+			if err != nil {
+				if _, err := s.ChannelMessageSend(m.ChannelID, "UserIDs was not found"); err != nil {
+					log.Println(err)
+				}
+				return
+			}
+			for _, usrID := range UsrIDs {
+				if myContext.DeadMan[m.GuildID][usrID] {
+					if err := s.GuildMemberDeafen(m.GuildID, usrID, false); err != nil {
+						log.Println(err)
+					}
+					if err := s.GuildMemberMute(m.GuildID, usrID, false); err != nil {
+						log.Println(err)
+					}
+				} else {
+					if err := s.GuildMemberDeafen(m.GuildID, usrID, true); err != nil {
+						log.Println(err)
+					}
+					if err := s.GuildMemberMute(m.GuildID, usrID, true); err != nil {
+						log.Println(err)
+					}
+				}
+			}
+		},
+	}
 	return cmd
 }
 
@@ -145,6 +397,21 @@ func (myContext *MyContext) helpString() string {
 		help += cmd.Description
 	}
 	return help
+}
+
+func findUsersIDbyUserName(s *discordgo.Session, m *discordgo.MessageCreate, aUsername string) (string, error) {
+	for _, guild := range s.State.Guilds {
+		for _, voiceState := range guild.VoiceStates {
+			User, err := s.User(voiceState.UserID)
+			if err != nil {
+				return "", errors.New("UserID was not found")
+			}
+			if User.Username == aUsername {
+				return User.ID, nil
+			}
+		}
+	}
+	return "", errors.New("UserID was not found")
 }
 
 func findUsersIDInVoiceChannel(s *discordgo.Session, m *discordgo.MessageCreate, VoiceChannelID string) ([]string, error) {

@@ -3,6 +3,7 @@ package discord
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 )
+
+var MAX_REQUEST_TIMES int = 30
 
 func (myContext *MyContext) docomoAPIrequest(m *discordgo.MessageCreate) ([]byte, error) {
 	tUrl := myContext.DocomoAPI.Url + "?APIKEY=" + myContext.DocomoAPI.Token
@@ -27,12 +30,13 @@ func (myContext *MyContext) docomoAPIrequest(m *discordgo.MessageCreate) ([]byte
 		}
 	}
 
-	apiSetting.TextData = m.Content + "::" + m.Author.Username
+	apiSetting.TextData = m.Author.Username + "::" + m.Content
 
 	apiSetting_json, err = json.Marshal(apiSetting)
 	if err != nil {
 		log.Fatal(err)
 	}
+	count := 0
 REQUEST:
 	resp, err := http.Post(tUrl, "application/json", bytes.NewBuffer(apiSetting_json))
 	if err != nil {
@@ -45,9 +49,13 @@ REQUEST:
 		return nil, err
 	}
 	af := getAudio(body)
-	if len(af.data) == 0 {
+	if len(af.data) == 0 && count < MAX_REQUEST_TIMES {
 		time.Sleep(300 * time.Millisecond)
+		count++
 		goto REQUEST
+	}
+	if count == MAX_REQUEST_TIMES {
+		return nil, errors.New("http request failed")
 	}
 	return af.data, nil
 }
