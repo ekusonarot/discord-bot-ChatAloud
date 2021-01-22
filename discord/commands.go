@@ -19,6 +19,11 @@ func (myContext *MyContext) getcommand() CMD {
 			Enter the voice channel and execute the command
 		`,
 		func(s *discordgo.Session, m *discordgo.MessageCreate, cmds []string) {
+			myContext.DeadMan = map[string]map[string]bool{
+				m.GuildID: map[string]bool{},
+			}
+			myContext.IsMeeting[m.GuildID] = true
+
 			vcID, err := findVoiceChannel(s, m)
 			if err != nil {
 				if _, err := s.ChannelMessageSend(m.ChannelID, "Voice Channel was not found"); err != nil {
@@ -33,9 +38,6 @@ func (myContext *MyContext) getcommand() CMD {
 				} else {
 					log.Fatal(err)
 				}
-			}
-			myContext.DeadMan = map[string]map[string]bool{
-				m.GuildID: map[string]bool{},
 			}
 		},
 	}
@@ -107,10 +109,12 @@ func (myContext *MyContext) getcommand() CMD {
 			if err != nil {
 				log.Fatal(err)
 			}
+			quit := make(chan bool)
 			for _, usrID := range usrIDs {
-				if err := s.GuildMemberMute(m.GuildID, usrID, true); err != nil {
-					log.Println(err)
-				}
+				go myMute(s, m.GuildID, usrID, true, quit)
+			}
+			for _, _ = range usrIDs {
+				<-quit
 			}
 		},
 	}
@@ -132,10 +136,12 @@ func (myContext *MyContext) getcommand() CMD {
 			if err != nil {
 				log.Fatal(err)
 			}
+			quit := make(chan bool)
 			for _, usrID := range usrIDs {
-				if err := s.GuildMemberMute(m.GuildID, usrID, false); err != nil {
-					log.Println(err)
-				}
+				go myMute(s, m.GuildID, usrID, false, quit)
+			}
+			for _, _ = range usrIDs {
+				<-quit
 			}
 		},
 	}
@@ -157,10 +163,12 @@ func (myContext *MyContext) getcommand() CMD {
 			if err != nil {
 				log.Fatal(err)
 			}
+			quit := make(chan bool)
 			for _, usrID := range usrIDs {
-				if err := s.GuildMemberDeafen(m.GuildID, usrID, true); err != nil {
-					log.Println(err)
-				}
+				go myDeafen(s, m.GuildID, usrID, true, quit)
+			}
+			for _, _ = range usrIDs {
+				<-quit
 			}
 		},
 	}
@@ -182,10 +190,13 @@ func (myContext *MyContext) getcommand() CMD {
 			if err != nil {
 				log.Fatal(err)
 			}
+
+			quit := make(chan bool)
 			for _, usrID := range usrIDs {
-				if err := s.GuildMemberDeafen(m.GuildID, usrID, false); err != nil {
-					log.Println(err)
-				}
+				go myDeafen(s, m.GuildID, usrID, false, quit)
+			}
+			for _, _ = range usrIDs {
+				<-quit
 			}
 		},
 	}
@@ -217,6 +228,7 @@ func (myContext *MyContext) getcommand() CMD {
 			} else {
 				usrID = m.Author.ID
 			}
+
 			myContext.DeadMan[m.GuildID][usrID] = true
 			if myContext.IsMeeting[m.GuildID] {
 				if err := s.GuildMemberDeafen(m.GuildID, usrID, false); err != nil {
@@ -263,6 +275,7 @@ func (myContext *MyContext) getcommand() CMD {
 			} else {
 				usrID = m.Author.ID
 			}
+
 			myContext.DeadMan[m.GuildID][usrID] = false
 			if myContext.IsMeeting[m.GuildID] {
 				if err := s.GuildMemberDeafen(m.GuildID, usrID, false); err != nil {
@@ -282,13 +295,13 @@ func (myContext *MyContext) getcommand() CMD {
 		},
 	}
 
-	cmd[".ck"] = Command{
+	cmd[".reset"] = Command{
 		`
-		".ck"
-			kill status all clear
+		".reset"
+			Game reset
 		`,
 		func(s *discordgo.Session, m *discordgo.MessageCreate, cmds []string) {
-			_, ok := s.VoiceConnections[m.GuildID]
+			vc, ok := s.VoiceConnections[m.GuildID]
 			if !ok {
 				if _, err := s.ChannelMessageSend(m.ChannelID, "This bot is not in any Voice Channel"); err != nil {
 					log.Println(err)
@@ -300,12 +313,40 @@ func (myContext *MyContext) getcommand() CMD {
 			myContext.DeadMan = map[string]map[string]bool{
 				m.GuildID: map[string]bool{},
 			}
+
+			myContext.IsMeeting[m.GuildID] = true
+
+			UsrIDs, err := findUsersIDInVoiceChannel(s, m, vc.ChannelID)
+			if err != nil {
+				if _, err := s.ChannelMessageSend(m.ChannelID, "UserIDs was not found"); err != nil {
+					log.Println(err)
+				}
+				return
+			}
+			quit := make(chan bool)
+			for _, usrID := range UsrIDs {
+				if myContext.DeadMan[m.GuildID][usrID] {
+
+					go myDeafen(s, m.GuildID, usrID, false, quit)
+
+					go myMute(s, m.GuildID, usrID, true, quit)
+				} else {
+
+					go myDeafen(s, m.GuildID, usrID, false, quit)
+
+					go myMute(s, m.GuildID, usrID, false, quit)
+
+				}
+			}
+			for i := 0; i < len(UsrIDs)*2; i++ {
+				<-quit
+			}
 		},
 	}
 
-	cmd[".mtg"] = Command{
+	cmd[".mt"] = Command{
 		`
-		".mtg"
+		".mt"
 			Meeting start
 		`,
 		func(s *discordgo.Session, m *discordgo.MessageCreate, cmds []string) {
@@ -325,31 +366,32 @@ func (myContext *MyContext) getcommand() CMD {
 				}
 				return
 			}
+
+			quit := make(chan bool)
 			for _, usrID := range UsrIDs {
 				if myContext.DeadMan[m.GuildID][usrID] {
-					if err := s.GuildMemberDeafen(m.GuildID, usrID, false); err != nil {
-						log.Println(err)
-					}
-					if err := s.GuildMemberMute(m.GuildID, usrID, true); err != nil {
-						log.Println(err)
-					}
+
+					go myDeafen(s, m.GuildID, usrID, false, quit)
+
+					go myMute(s, m.GuildID, usrID, true, quit)
 				} else {
-					if err := s.GuildMemberDeafen(m.GuildID, usrID, false); err != nil {
-						log.Println(err)
-					}
-					if err := s.GuildMemberMute(m.GuildID, usrID, false); err != nil {
-						log.Println(err)
-					}
+
+					go myDeafen(s, m.GuildID, usrID, false, quit)
+
+					go myMute(s, m.GuildID, usrID, false, quit)
+
 				}
 			}
-
+			for i := 0; i < len(UsrIDs)*2; i++ {
+				<-quit
+			}
 		},
 	}
 
-	cmd[".fin"] = Command{
+	cmd[".gm"] = Command{
 		`
-		".fin"
-			Meeting finish
+		".gm"
+			Game Start and Meeting finish
 		`,
 		func(s *discordgo.Session, m *discordgo.MessageCreate, cmds []string) {
 			vc, ok := s.VoiceConnections[m.GuildID]
@@ -368,22 +410,24 @@ func (myContext *MyContext) getcommand() CMD {
 				}
 				return
 			}
+
+			quit := make(chan bool)
 			for _, usrID := range UsrIDs {
 				if myContext.DeadMan[m.GuildID][usrID] {
-					if err := s.GuildMemberDeafen(m.GuildID, usrID, false); err != nil {
-						log.Println(err)
-					}
-					if err := s.GuildMemberMute(m.GuildID, usrID, false); err != nil {
-						log.Println(err)
-					}
+
+					go myDeafen(s, m.GuildID, usrID, false, quit)
+
+					go myMute(s, m.GuildID, usrID, false, quit)
 				} else {
-					if err := s.GuildMemberDeafen(m.GuildID, usrID, true); err != nil {
-						log.Println(err)
-					}
-					if err := s.GuildMemberMute(m.GuildID, usrID, true); err != nil {
-						log.Println(err)
-					}
+
+					go myDeafen(s, m.GuildID, usrID, true, quit)
+
+					go myMute(s, m.GuildID, usrID, true, quit)
+
 				}
+			}
+			for i := 0; i < len(UsrIDs)*2; i++ {
+				<-quit
 			}
 		},
 	}
@@ -418,6 +462,13 @@ func findUsersIDInVoiceChannel(s *discordgo.Session, m *discordgo.MessageCreate,
 	usrs := make([]string, 0)
 	for _, guild := range s.State.Guilds {
 		for _, voiceState := range guild.VoiceStates {
+			u, err := s.User(voiceState.UserID)
+			if err != nil {
+				return nil, errors.New("func findUsersIDInVoiceChannel")
+			}
+			if u.Bot {
+				continue
+			}
 			if voiceState.ChannelID == VoiceChannelID {
 				usrs = append(usrs, voiceState.UserID)
 			}
@@ -505,4 +556,16 @@ func voiceSettingChange(slice []string, s *discordgo.Session, m *discordgo.Messa
 		}
 	}
 	return nil
+}
+func myDeafen(s *discordgo.Session, guildID string, usrID string, set bool, quit chan bool) {
+	if err := s.GuildMemberDeafen(guildID, usrID, set); err != nil {
+		log.Println(err)
+	}
+	quit <- true
+}
+func myMute(s *discordgo.Session, guildID string, usrID string, set bool, quit chan bool) {
+	if err := s.GuildMemberMute(guildID, usrID, set); err != nil {
+		log.Println(err)
+	}
+	quit <- true
 }
